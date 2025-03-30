@@ -1,0 +1,155 @@
+#include <stdio.h>
+#include <stdlib.h>  // For rand()
+
+#define AUDIO_BASE 0xFF203040   // Audio core base address
+#define SW_BASE    0xFF200040   // Switch base address
+#define TIMER_BASE 0xFF202000   // Timer base address
+
+#define TABLE_SIZE 1028          // 正弦波查找表大小
+#define MAX_AMPLITUDE 0x7FFFFF  // 24-bit 最大振幅
+
+// 定义音频控制结构体
+struct audio_t {
+    volatile unsigned int control;
+    volatile unsigned char rarc;
+    volatile unsigned char ralc;
+    volatile unsigned char wsrc;
+    volatile unsigned char wslc;
+    volatile unsigned int ldata;
+    volatile unsigned int rdata;
+};
+
+// 定义计时器结构体
+struct timer_t {
+    volatile unsigned int status;
+    volatile unsigned int control;
+    volatile unsigned int periodl;
+    volatile unsigned int periodh;
+    volatile unsigned int snapl;
+    volatile unsigned int snaph;
+};
+const int sine_table[TABLE_SIZE] = {
+//省去
+};
+// 获取正弦波表中的值
+// 获取正弦波表中的值
+int get_sine_value(int index) {
+    return sine_table[index % TABLE_SIZE];
+}
+
+int main(void) {
+    struct audio_t *const audiop = (struct audio_t *) AUDIO_BASE;
+    struct timer_t *const timerp = (struct timer_t *) TIMER_BASE;
+    volatile unsigned int *const swp = (volatile unsigned int *) SW_BASE;
+    
+    int sw_val;
+    // 固定的4个最高音调周期值数组（较小的周期值对应较高的音调）
+    const int tone_periods[4] = {10, 20, 30, 40};
+    int period_in_samples = tone_periods[0];
+    int phase_index = 0;
+    int phase_step = 1;
+    // 定义难度级别的持续时间和暂停时间 (以计时器触发次数计)
+    const int difficulty_play_time[4] = {4, 2, 2, 2};   // 各难度级别的播放持续触发次数
+    const int difficulty_pause_time[4] = {2, 2, 1, 0};  // 各难度级别的暂停持续触发次数
+    int difficulty = 0;                                  // 当前难度级别 (0-3)
+    int timer_count = 0;                                 // 计时器触发计数
+    int play_state = 1;                                  // 1=播放，0=暂停
+    
+    int is_playing = 0;                                  // 总体播放状态
+    int last_sw_val = -1;                                // 上一次的SW0值
+    int last_difficulty_sw = -1;                         // 上一次的SW1-2值
+    unsigned int current_timer_value;
+    
+    // 设置计时器，每0.25秒触发一次（以便更细粒度地控制各难度级别的时间）
+    // 假设时钟频率为50MHz
+    timerp->periodl = 0xFFFF;
+    timerp->periodh = 0x05F5;  // 约12,500,000周期 = 0.25秒
+    timerp->control = 0x7;     // 启动计时器，连续模式，启用中断
+    
+    while (1) {
+        // 检查SW0是否被按下或释放 (SW0是最低位)
+        sw_val = (*swp) & 0x1;
+        
+        // 检查SW1-2的状态来确定难度级别 (第2和第3位)
+        int difficulty_sw = ((*swp) & 0x6) >> 1;  // 获取SW1和SW2的值
+        
+        if (difficulty_sw != last_difficulty_sw) {
+            last_difficulty_sw = difficulty_sw;
+            difficulty = difficulty_sw;  // 直接使用SW1-2的值作为难度级别 (0-3)
+        }
+        
+        if (sw_val != last_sw_val) {
+            last_sw_val = sw_val;
+            if (sw_val == 1) {
+                // SW0被按下，切换播放状态
+                is_playing = !is_playing;
+                play_state = 1;  // 重置为播放状态
+                timer_count = 0; // 重置计时器计数
+            }
+        }
+        
+        // 读取当前计时器值
+        current_timer_value = timerp->snapl;
+        
+        // 检查是否计时器触发
+        if ((timerp->status & 0x1) != 0) {
+            // 清除计时器中断标志
+            timerp->status = 0x1;
+            
+            if (is_playing) {
+                timer_count++;
+                
+                // 根据当前状态和难度级别确定是否需要切换状态
+                if (play_state) {
+                    // 当前是播放状态
+                    if (timer_count >= difficulty_play_time[difficulty]) {
+                        // 播放时间结束，切换到暂停状态
+                        play_state = 0;
+                        timer_count = 0;
+                        
+                        // 最高难度没有暂停
+                        if (difficulty == 3) {
+                            // 直接选择新音调并保持播放状态
+                            int random_index = rand() % 4;
+                            period_in_samples = tone_periods[random_index];
+                            phase_step = TABLE_SIZE / period_in_samples;
+                            play_state = 1;
+                        }
+                    }
+                } else {
+                    // 当前是暂停状态
+                    if (timer_count >= difficulty_pause_time[difficulty]) {
+                        // 暂停时间结束，切换到播放状态
+                        play_state = 1;
+                        timer_count = 0;
+                        
+                        // 选择新的音调
+                        int random_index = rand() % 4;
+                        period_in_samples = tone_periods[random_index];
+                        phase_step = TABLE_SIZE / period_in_samples;
+                    }
+                }
+            }
+        }
+        
+        if (is_playing && play_state) {
+            if ((audiop->wsrc > 0) && (audiop->wslc > 0)) {
+                int sample_value = get_sine_value(phase_index);
+                audiop->ldata = sample_value;
+                audiop->rdata = sample_value;
+                
+                phase_index += phase_step;
+                if (phase_index >= TABLE_SIZE)
+                    phase_index -= TABLE_SIZE;
+            }
+        } else {
+            if ((audiop->wsrc > 0) && (audiop->wslc > 0)) {
+                audiop->ldata = 0;
+                audiop->rdata = 0;
+                phase_index = 0;
+            }
+        }
+    }
+    
+    return 0;
+}
