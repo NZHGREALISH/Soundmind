@@ -41,6 +41,8 @@
 #undef BACKGROUND_H
 #include "over.h"
 #undef BACKGROUND_H
+#include "study.h"
+#undef BACKGROUND_H
 #include "c.h"
 #include "d.h"
 #include "e.h"
@@ -52,6 +54,7 @@ int difficulty = 0;
 
 typedef enum {
     GAME_START,    // 开始界面
+    GAME_STUDY,
     GAME_SETUP,    // 设置界面（选择难度）
     GAME_PLAYING,  // 游戏中（难度1-4）
     GAME_SUCCESS,  // 成功界面
@@ -60,7 +63,7 @@ typedef enum {
 
 // ========== 音频和波形表 ==========
 #define TABLE_SIZE 1028          
-#define MAX_AMPLITUDE 0x7FFFFF 
+#define MAX_AMPLITUDE 0x7FFFFF  
 
 
 void play_random_note();
@@ -166,6 +169,9 @@ void draw_background() {
             switch (game_state) {
                 case GAME_START:
                     color = background5[y][x]; // start.h
+                    break;
+                case GAME_STUDY:
+                    color = background8[y][x]; // study.h
                     break;
                 case GAME_SETUP:
                     // 根据难度级别选择背景
@@ -359,11 +365,33 @@ int main(void) {
             if (byte2 != 0xF0) { // 只在按下时处理，不在释放时处理
                 // 如果是开始界面，按空格键进入设置界面
                 if (game_state == GAME_START && byte3 == PS2_KEY_SPACE) {
-                    game_state = GAME_SETUP;
-                    difficulty = 0; // 从难度1开始
+                    game_state = GAME_STUDY;
                 } 
+                else if (game_state == GAME_STUDY ) {
+                    switch (byte3) {
+                        case PS2_KEY_C:
+                            play_audio((int*)audio_samples_c, num_samples_c, 1, 1);
+                            break;
+                        case PS2_KEY_D:
+                            play_audio((int*)audio_samples_d, num_samples_d, 1, 1);
+                            break;
+                        case PS2_KEY_E:
+                            play_audio((int*)audio_samples_e, num_samples_e, 1, 1);
+                            break;
+                        case PS2_KEY_F:
+                            play_audio((int*)audio_samples_f, num_samples_f, 1, 1);
+                            break;
+                        case PS2_KEY_G:
+                            play_audio((int*)audio_samples_g, num_samples_g, 1, 1);
+                            break;
+                        case 0x5A: // 回车键
+                            game_state = GAME_SETUP;
+                            difficulty = 0; // 从难度1开始
+                            break;
+                }
+            }
                 // 在设置界面，按回车键开始游戏
-                else if (game_state == GAME_SETUP && byte3 == 0x5A) { // 0x5A 是回车键的扫描码
+                else if (game_state == GAME_SETUP && byte3 == PS2_KEY_SPACE) {
                     game_state = GAME_PLAYING;
                     current_slot = 0; // 重置槽位
                     note_count = 0;  // 重置音符计数
