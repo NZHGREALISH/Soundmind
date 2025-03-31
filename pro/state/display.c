@@ -26,6 +26,7 @@
 #define PS2_KEY_G     0x34      // G
 #define ORANGE 0xFD00
 #define BLACK  0x0000
+#define PINK  0xFD78
 #include "stage1.h" // 背景1 (00)
 #undef BACKGROUND_H
 #include "stage2.h" // 背景2 (01)
@@ -51,6 +52,7 @@ int difficulty = 0;
 
 typedef enum {
     GAME_START,    // 开始界面
+    GAME_SETUP,    // 设置界面（选择难度）
     GAME_PLAYING,  // 游戏中（难度1-4）
     GAME_SUCCESS,  // 成功界面
     GAME_OVER      // 失败界面
@@ -132,6 +134,7 @@ void play_audio(int32_t *samples, int n, int step, int replicate);
 
 // ====== 画橙色圆 ====== //
 void draw_orange_circle(int x, int y);
+void draw_orange_circle_plus1(int x, int y);
 
 // ====== 画加粗线(直线) ====== //
 void draw_thick_vertical_line(int x, int y_start, int length, int thickness, short color);
@@ -148,7 +151,10 @@ void draw_E(int x, int y);
 void draw_F(int x, int y);
 void draw_G(int x, int y);
 
-
+// 在全局变量区域添加
+int note_display[NUM_KEY_SLOTS] = {0};  // 跟踪每个音符的显示状态
+int note_count = 0;  // 跟踪已播放的音符数量
+char played_notes[NUM_KEY_SLOTS] = {0};  // 记录播放的音符序列
 
 // ------------------------------------------
 // 根据游戏状态选择背景
@@ -160,6 +166,16 @@ void draw_background() {
             switch (game_state) {
                 case GAME_START:
                     color = background5[y][x]; // start.h
+                    break;
+                case GAME_SETUP:
+                    // 根据难度级别选择背景
+                    switch (difficulty) {
+                        case 0: color = background1[y][x]; break; // 难度1
+                        case 1: color = background2[y][x]; break; // 难度2
+                        case 2: color = background3[y][x]; break; // 难度3
+                        case 3: color = background4[y][x]; break; // 难度4
+                        default: color = background1[y][x]; break;
+                    }
                     break;
                 case GAME_PLAYING:
                     // 根据难度级别选择背景
@@ -313,32 +329,14 @@ int main(void) {
             // 显示PS2数据到HEX显示器
             HEX_PS2(byte1, byte2, byte3);
             
-            // 检测空格键 - 控制音频播放/暂停
-            if (byte3 == PS2_KEY_SPACE && byte2 != 0xF0) {
-                space_pressed = 1;
-            } else if (byte3 == PS2_KEY_SPACE && byte2 == 0xF0) {
-                if (space_pressed) {
-                    // 空格键释放，切换播放状态
-                    is_playing = !is_playing;
-                    play_state = 1;  // 重置为播放状态
-                    timer_count = 0; // 重置计时器计数
-                    space_pressed = 0;
-                }
-            }
-            
             // 上箭头增加难度
             if (byte3 == PS2_KEY_UP && byte2 != 0xF0) {
                 up_pressed = 1;
             } else if (byte3 == PS2_KEY_UP && byte2 == 0xF0) {
-                if (up_pressed && game_state == GAME_PLAYING) {
+                if (up_pressed && game_state == GAME_SETUP) {
                     // 上箭头释放，增加难度
                     if (difficulty < 3) {
                         difficulty++;
-                        // 切换到新难度时重置槽位
-                        current_slot = 0;
-                        for (int i = 0; i < NUM_KEY_SLOTS; i++) {
-                            letter_slots[i] = 0;
-                        }
                     }
                     up_pressed = 0;
                 }
@@ -348,15 +346,10 @@ int main(void) {
             if (byte3 == PS2_KEY_DOWN && byte2 != 0xF0) {
                 down_pressed = 1;
             } else if (byte3 == PS2_KEY_DOWN && byte2 == 0xF0) {
-                if (down_pressed && game_state == GAME_PLAYING) {
+                if (down_pressed && game_state == GAME_SETUP) {
                     // 下箭头释放，减少难度
                     if (difficulty > 0) {
                         difficulty--;
-                        // 切换到新难度时重置槽位
-                        current_slot = 0;
-                        for (int i = 0; i < NUM_KEY_SLOTS; i++) {
-                            letter_slots[i] = 0;
-                        }
                     }
                     down_pressed = 0;
                 }
@@ -364,14 +357,25 @@ int main(void) {
             
             // 处理游戏状态切换和按键输入
             if (byte2 != 0xF0) { // 只在按下时处理，不在释放时处理
-                // 如果是开始界面，任意键开始游戏
-                if (game_state == GAME_START&& byte3 == PS2_KEY_SPACE) {
-                    game_state = GAME_PLAYING;
+                // 如果是开始界面，按空格键进入设置界面
+                if (game_state == GAME_START && byte3 == PS2_KEY_SPACE) {
+                    game_state = GAME_SETUP;
                     difficulty = 0; // 从难度1开始
+                } 
+                // 在设置界面，按回车键开始游戏
+                else if (game_state == GAME_SETUP && byte3 == 0x5A) { // 0x5A 是回车键的扫描码
+                    game_state = GAME_PLAYING;
                     current_slot = 0; // 重置槽位
+                    note_count = 0;  // 重置音符计数
                     for (int i = 0; i < NUM_KEY_SLOTS; i++) {
                         letter_slots[i] = 0;
+                        note_display[i] = 0;  // 重置显示状态
+                        played_notes[i] = 0;  // 重置播放的音符记录
                     }
+                    // 开始播放
+                    is_playing = 1;
+                    play_state = 1;
+                    timer_count = 0;
                 } 
                 // 游戏中状态下的按键处理
                 else if (game_state == GAME_PLAYING) {
@@ -451,6 +455,15 @@ int main(void) {
         draw_background();
         draw_letter_slots();
         
+        // 绘制问号圆圈
+        if (game_state == GAME_PLAYING) {
+            if (note_display[0]) draw_question_mark(27, 90);
+            if (note_display[1]) draw_question_mark(83, 90);
+            if (note_display[2]) draw_question_mark(140, 90);
+            if (note_display[3]) draw_question_mark(204, 90);
+            if (note_display[4]) draw_question_mark(266, 89);
+        }
+        
         // 同步和切换缓冲
         wait_for_vsync();
         pixel_buffer_start = *(pixel_ctrl_ptr + 1);
@@ -477,30 +490,58 @@ void play_audio(int32_t *samples, int n, int step, int replicate) {
 }
 
 void play_random_note() {
-    // 只在程序开始时初始化一次随机种子会更好
-    // srand(time(NULL));  // 应该在main的开头调用一次
+    if (note_count >= NUM_KEY_SLOTS) {
+        // 检查答案
+        int correct_count = 0;
+        for (int i = 0; i < NUM_KEY_SLOTS; i++) {
+            if (letter_slots[i] == played_notes[i]) {
+                correct_count++;
+            }
+        }
+        
+        // 根据正确数量决定游戏状态
+        if (correct_count >= 3) {
+            game_state = GAME_SUCCESS;
+        } else {
+            game_state = GAME_OVER;
+        }
+        return;
+    }
     
     int r = rand() % 5;  // 生成 0 到 4 之间的随机数
-
+    char note;
+    
+    // 根据随机数选择音符
     switch (r) {
         case 0:
-            // 假设每个头文件中都有相应的num_samples_X变量
-            // 如果没有，你需要手动定义或找到正确的变量名
             play_audio((int*)audio_samples_d, num_samples_d, 1, 1);
+            note = 'D';
             break;
         case 1:
             play_audio((int*)audio_samples_c, num_samples_c, 1, 1);
+            note = 'C';
             break;
         case 2:
             play_audio((int*)audio_samples_e, num_samples_e, 1, 1);
+            note = 'E';
             break;
         case 3:
             play_audio((int*)audio_samples_f, num_samples_f, 1, 1);
+            note = 'F';
             break;
         case 4:
             play_audio((int*)audio_samples_g, num_samples_g, 1, 1);
+            note = 'G';
+            break;
+        default:
+            note = 'C';
             break;
     }
+    
+    // 更新显示状态和记录音符
+    note_display[note_count] = 1;  // 在当前位置显示新的音符
+    played_notes[note_count] = note;  // 记录播放的音符
+    note_count++;  // 增加计数
 }
 
 // ------------------------------------------
@@ -520,6 +561,20 @@ void draw_orange_circle(int x, int y) {
         }
     }
 }
+void draw_orange_circle_plus1(int x, int y) {
+    int cx = x + 13;
+    int cy = y + 13;
+    int r  = 14;
+    int r_sq = r*r;
+    for (int dy = -r; dy <= r; dy++) {
+        for (int dx = -r; dx <= r; dx++) {
+            if (dx*dx + dy*dy <= r_sq) {
+                plot_pixel(cx + dx, cy + dy, PINK);
+            }
+        }
+    }
+}
+
 
 // ------------------------------------------
 // 粗直线：垂直
@@ -647,6 +702,51 @@ void draw_G(int x, int y) {
 
     // 在右下多加一个小弧 (cx+2, cy+3), radius=4, angle=280~360
     draw_thick_vertical_line(cx+4, cy, 6, 3, BLACK);
+}
+
+// ------------------------------------------
+// 画问号
+// ------------------------------------------
+void draw_question_mark(int x, int y) {
+    draw_orange_circle_plus1(x, y);
+    int cx = x + 12;
+    int cy = y + 12;
+    int arc_cx = cx;
+    int arc_cy = cy-3;  // move up 5 pixels
+    draw_thick_arc(arc_cx, arc_cy, /*outer_r=*/6, /*thick=*/3,
+                   /*start_deg=*/180.0f, /*end_deg=*/360.0f,
+                   /*color=*/0x0000 /*BLACK*/);
+
+    draw_thick_vertical_line(/*x=*/cx + 5,
+                             /*y_start=*/cy - 3,
+                             /*length=*/4,
+                             /*thickness=*/3,
+                             /*color=*/0x0000 /*BLACK*/);
+
+    draw_thick_horizontal_line(/*y=*/(cy + 1),
+                               /*x_start=*/(cx),
+                               /*length=*/5,
+                               /*thickness=*/3,
+                               /*color=*/0x0000 /*BLACK*/);
+
+    draw_thick_vertical_line(/*x=*/(cx),
+                             /*y_start=*/(cy + 1),
+                             /*length=*/5,
+                             /*thickness=*/3,
+                             /*color=*/0x0000 /*BLACK*/);
+
+    {
+        int dot_r = 2;
+        int dot_cx = cx;
+        int dot_cy = cy + 9;
+        for (int dy = -dot_r; dy <= dot_r; dy++) {
+            for (int dx = -dot_r; dx <= dot_r; dx++) {
+                if (dx*dx + dy*dy <= dot_r*dot_r) {
+                    plot_pixel(dot_cx + dx, dot_cy + dy, 0x0000 /*BLACK*/);
+                }
+            }
+        }
+    }
 }
 
 // ------------------------------------------
