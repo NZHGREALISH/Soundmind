@@ -435,6 +435,21 @@ int main(void) {
                             break;
                     }
                 }
+                else if ((game_state == GAME_OVER || game_state == GAME_SUCCESS) && byte3 == PS2_KEY_SPACE) {
+                    game_state = GAME_START;
+                    current_slot = 0; // 重置槽位
+                    note_count = 0;  // 重置音符计数
+                    for (int i = 0; i < NUM_KEY_SLOTS; i++) {
+                        letter_slots[i] = 0;
+                        note_display[i] = 0;  // 重置显示状态
+                        played_notes[i] = 0;  // 重置播放的音符记录
+                    }
+                    is_playing = 0;
+                    play_state = 1;
+                    timer_count = 0;
+                    difficulty = 0;  // 重置难度
+                }
+            
             }
             
             // PS2键盘自动发送的0xAA 0x00序列表示键盘已就绪
