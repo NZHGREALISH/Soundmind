@@ -1,8 +1,8 @@
 from PIL import Image
 
 # 📂 INPUT FILE: Change this to your PNG file path
-input_png = "Base_bg_level4.png"
-output_c_file = "stage4.h"
+input_png = "Basepure.png"
+output_c_file = "study.h"
 
 # 📏 Expected image size (adjust if needed)
 SCREEN_WIDTH = 320

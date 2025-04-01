@@ -1,1 +1,0 @@
-c:\ECE243\Soundmind\pro\3-30\display.c
