@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">
+  <!-- Background with celebratory gradient -->
+  <defs>
+    <linearGradient id="success-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#162447" />
+      <stop offset="100%" stop-color="#1f4068" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="star-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Main background -->
+  <rect width="320" height="240" fill="url(#success-gradient)" />
+  
+  <!-- Celebration particles -->
+  <g opacity="0.6" filter="url(#star-glow)">
+    <circle cx="50" cy="40" r="2" fill="#ffcc00" />
+    <circle cx="80" cy="70" r="3" fill="#ffcc00" />
+    <circle cx="30" cy="100" r="2" fill="#ffcc00" />
+    <circle cx="60" cy="130" r="3" fill="#ffcc00" />
+    <circle cx="40" cy="180" r="2" fill="#ffcc00" />
+    <circle cx="90" cy="200" r="3" fill="#ffcc00" />
+    
+    <circle cx="270" cy="40" r="2" fill="#ffcc00" />
+    <circle cx="240" cy="70" r="3" fill="#ffcc00" />
+    <circle cx="290" cy="100" r="2" fill="#ffcc00" />
+    <circle cx="260" cy="130" r="3" fill="#ffcc00" />
+    <circle cx="280" cy="180" r="2" fill="#ffcc00" />
+    <circle cx="230" cy="200" r="3" fill="#ffcc00" />
+    
+    <circle cx="160" cy="30" r="3" fill="#ffcc00" />
+    <circle cx="120" cy="50" r="2" fill="#ffcc00" />
+    <circle cx="200" cy="50" r="2" fill="#ffcc00" />
+    <circle cx="140" cy="210" r="3" fill="#ffcc00" />
+    <circle cx="180" cy="210" r="2" fill="#ffcc00" />
+  </g>
+  
+  <!-- Trophy icon -->
+  <g transform="translate(145, 20)">
+    <!-- Trophy cup -->
+    <path d="M25,0 L25,25 C25,30 20,35 15,35 C10,35 5,30 5,25 L5,0 Z" fill="#ffcc00" stroke="#e94560" stroke-width="1" />
+    <rect x="0" y="0" width="30" height="5" fill="#ffcc00" stroke="#e94560" stroke-width="1" />
+    
+    <!-- Trophy base -->
+    <rect x="10" y="35" width="10" height="5" fill="#ffcc00" stroke="#e94560" stroke-width="1" />
+    <rect x="5" y="40" width="20" height="5" fill="#ffcc00" stroke="#e94560" stroke-width="1" />
+    
+    <!-- Handle left -->
+    <path d="M5,10 C-5,10 -5,20 0,20" fill="none" stroke="#e94560" stroke-width="2" />
+    
+    <!-- Handle right -->
+    <path d="M25,10 C35,10 35,20 30,20" fill="none" stroke="#e94560" stroke-width="2" />
+  </g>
+  
+  <!-- Success message with glow effect -->
+  <g filter="url(#glow)">
+    <text x="160" y="135" font-family="Arial" font-size="40" font-weight="bold" fill="#4cc9f0" text-anchor="middle">SUCCESS!</text>
+  </g>
+  
+  
+  <!-- Restart button -->
+  <g>
+    <rect x="30" y="191" width="260" height="30" rx="15" fill="none" stroke="#4cc9f0" stroke-width="2" />
+    <text x="160" y="213" font-family="Arial" font-size="18" fill="#ffffff" text-anchor="middle">PRESS SPACE TO RESTART</text>
+  </g>
+  
+
+</svg>
