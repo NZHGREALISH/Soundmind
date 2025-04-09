@@ -84,18 +84,20 @@ Soundmind/
 ## Compilation and Execution
 
 1. Ensure necessary development tools are installed:
-   - ARM cross-compilation toolchain
-   - DE1-SoC development environment
-
+   - RISC-V cross-compilation toolchain for NIOS V
+   - GDB server and client
+   - DE1-SoC development environment with NIOS V support
+     
 2. Compile the project:
    ```bash
    cd state
-   make
+   make de1-soc
    ```
 
 3. Download the compiled program to DE1-SoC:
    ```bash
-   make download
+   make gdb_server
+   make client
    ```
 
 ## Controls
